@@ -98,22 +98,40 @@ async function generate() {
     const planDesc = (await vRes.json()).choices[0].message.content;
 
     setProgress(45, 'Génération du rendu…', instructions ? 'Intégration de vos demandes spécifiques' : 'GPT Image 2 crée votre visualisation photoréaliste');
-    await new Promise(r => setTimeout(r, 300));
 
-    // — Étape 2 : GPT Image 2 (remplaçant de DALL-E 3 depuis mai 2026)
+    // — Étape 2 : GPT Image 2 avec response_format explicite
     const instrPrompt = instructions ? ` Specific improvements requested: ${instructions}.` : '';
     const prompt = `Photorealistic interior design visualization of a kitchen. Layout to respect: ${planDesc}.${instrPrompt} High-end French interior design studio quality. Soft natural daylight. Realistic materials: stone or quartz countertops, quality cabinetry, professional appliances. Beautiful composition from a slightly elevated angle showing the full kitchen. No text, no labels, no people. Ultra detailed, architectural photography quality, 4K.`;
 
     const dRes = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify({ model: 'gpt-image-2', prompt, n: 1, size: '1536x1024', quality: 'high' }),
+      body: JSON.stringify({
+        model: 'gpt-image-2',
+        prompt,
+        n: 1,
+        size: '1536x1024',
+        quality: 'medium',
+        output_format: 'png',
+        response_format: 'b64_json',
+      }),
     });
 
     if (!dRes.ok) { const e = await dRes.json(); throw new Error(e.error?.message || 'Erreur GPT Image 2'); }
+
+    setProgress(85, 'Traitement de l\'image…', 'Décodage du rendu généré');
+
     const dData = await dRes.json();
-    // GPT Image 2 retourne du base64 par défaut
-    const genUrl = 'data:image/png;base64,' + dData.data[0].b64_json;
+
+    // GPT Image 2 peut retourner b64_json ou url selon le compte
+    let genUrl;
+    if (dData.data[0].b64_json) {
+      genUrl = 'data:image/png;base64,' + dData.data[0].b64_json;
+    } else if (dData.data[0].url) {
+      genUrl = dData.data[0].url;
+    } else {
+      throw new Error('Réponse inattendue de l\'API — aucune image reçue.');
+    }
 
     setProgress(95, 'Finalisation…', 'Assemblage du comparateur avant / après');
     await new Promise(r => setTimeout(r, 300));
@@ -144,7 +162,7 @@ function showResult(beforeUrl, afterUrl, note) {
     document.getElementById('imgBefore').src       = beforeUrl;
     document.getElementById('imgAfter').src        = afterUrl;
     const dl = document.getElementById('dlBtn');
-    dl.href = afterUrl;
+    dl.href   = afterUrl;
     dl.target = '_blank';
     dl.removeAttribute('download');
     document.getElementById('cmpNote').textContent = note;
