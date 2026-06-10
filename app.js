@@ -24,21 +24,16 @@ dropZone.addEventListener('drop', e => {
 
 function handleFile(file) {
   if (!file || !file.type.startsWith('image/')) return;
-
   const reader = new FileReader();
   reader.onload = e => {
     imgDataUrl = e.target.result;
     imgBase64  = imgDataUrl.split(',')[1];
-
-    document.getElementById('previewImg').src      = imgDataUrl;
+    document.getElementById('previewImg').src          = imgDataUrl;
     document.getElementById('previewName').textContent = file.name;
     dropZone.style.display = 'none';
     document.getElementById('previewArea').classList.add('vis');
     document.getElementById('genBtn').disabled = false;
-
-    hide('compareWrap');
-    hide('errWrap');
-    hide('progressWrap');
+    hide('compareWrap'); hide('errWrap'); hide('progressWrap');
   };
   reader.readAsDataURL(file);
 }
@@ -48,8 +43,7 @@ function show(id) { document.getElementById(id).classList.add('vis'); }
 function hide(id) { document.getElementById(id).classList.remove('vis'); }
 
 function setProgress(pct, label, sub) {
-  const circ = 207.3;
-  document.getElementById('progBar').style.strokeDashoffset = circ * (1 - pct / 100);
+  document.getElementById('progBar').style.strokeDashoffset = 207.3 * (1 - pct / 100);
   document.getElementById('progPct').textContent = pct + '%';
   if (label) document.getElementById('progLabel').textContent = label;
   if (sub)   document.getElementById('progSub').textContent   = sub;
@@ -72,11 +66,9 @@ async function generate() {
 
   const instructions = document.getElementById('instrInput').value.trim();
 
-  hide('compareWrap');
-  hide('errWrap');
+  hide('compareWrap'); hide('errWrap');
   show('progressWrap');
   setProgress(0, '', '');
-
   document.getElementById('genBtn').disabled = true;
   document.getElementById('genBtn').innerHTML = `
     <svg class="spin" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5">
@@ -92,66 +84,37 @@ async function generate() {
       ? `\n\nThe client has specific requests: "${instructions}". Incorporate these while respecting the overall layout.`
       : '';
 
-    const visionRes = await fetch('https://api.openai.com/v1/chat/completions', {
+    const vRes = await fetch('https://api.openai.com/v1/chat/completions', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + apiKey,
-      },
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
       body: JSON.stringify({
         model: 'gpt-4o',
         max_tokens: 700,
-        messages: [{
-          role: 'user',
-          content: [
-            { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + imgBase64 } },
-            { type: 'text', text: `You are an expert kitchen designer. Analyze this kitchen plan or sketch and describe it precisely in English so that an image generator can create a photorealistic 3D render faithful to this layout. Include: room shape and approximate dimensions, position of windows and doors, cabinet layout (L-shape, U-shape, galley, island, etc.), visible appliances and positions, worktop areas, and any distinctive architectural features. Be specific about spatial relationships. Write 4-5 descriptive sentences only.${instrLine}` },
-          ],
-        }],
+        messages: [{ role: 'user', content: [
+          { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + imgBase64 } },
+          { type: 'text', text: `You are an expert kitchen designer. Analyze this kitchen plan or sketch and describe it precisely in English so that an image generator can create a photorealistic 3D render faithful to this layout. Include: room shape and approximate dimensions, position of windows and doors, cabinet layout (L-shape, U-shape, galley, island, etc.), visible appliances and positions, worktop areas, and any distinctive architectural features. Write 4-5 descriptive sentences only.${instrLine}` },
+        ]}],
       }),
     });
 
-    if (!visionRes.ok) {
-      const e = await visionRes.json();
-      throw new Error(e.error?.message || 'Erreur GPT-4o Vision');
-    }
+    if (!vRes.ok) { const e = await vRes.json(); throw new Error(e.error?.message || 'Erreur GPT-4o Vision'); }
+    const planDesc = (await vRes.json()).choices[0].message.content;
 
-    const planDesc = (await visionRes.json()).choices[0].message.content;
-
-    setProgress(
-      45,
-      'Génération du rendu…',
-      instructions ? 'Intégration de vos demandes spécifiques' : 'DALL·E 3 crée votre visualisation photoréaliste'
-    );
-
+    setProgress(45, 'Génération du rendu…', instructions ? 'Intégration de vos demandes spécifiques' : 'DALL·E 3 crée votre visualisation photoréaliste');
     await new Promise(r => setTimeout(r, 300));
 
-    // — Étape 2 : DALL-E 3 génère le rendu
+    // — Étape 2 : DALL-E 3 — retourne une URL (pas de response_format b64_json)
     const instrPrompt = instructions ? ` Specific improvements requested: ${instructions}.` : '';
     const prompt = `Photorealistic interior design visualization of a kitchen. Layout to respect: ${planDesc}.${instrPrompt} High-end French interior design studio quality. Soft natural daylight. Realistic materials: stone or quartz countertops, quality cabinetry, professional appliances. Beautiful composition from a slightly elevated angle showing the full kitchen. No text, no labels, no people. Ultra detailed, architectural photography quality, 4K.`;
 
-    const dalleRes = await fetch('https://api.openai.com/v1/images/generations', {
+    const dRes = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': 'Bearer ' + apiKey,
-      },
-      body: JSON.stringify({
-        model: 'dall-e-3',
-        prompt,
-        n: 1,
-        size: '1792x1024',
-        quality: 'hd',
-        response_format: 'b64_json',
-      }),
+      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
+      body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size: '1792x1024', quality: 'hd' }),
     });
 
-    if (!dalleRes.ok) {
-      const e = await dalleRes.json();
-      throw new Error(e.error?.message || 'Erreur DALL·E 3');
-    }
-
-    const genUrl = 'data:image/png;base64,' + (await dalleRes.json()).data[0].b64_json;
+    if (!dRes.ok) { const e = await dRes.json(); throw new Error(e.error?.message || 'Erreur DALL·E 3'); }
+    const genUrl = (await dRes.json()).data[0].url;
 
     setProgress(95, 'Finalisation…', 'Assemblage du comparateur avant / après');
     await new Promise(r => setTimeout(r, 300));
@@ -165,7 +128,6 @@ async function generate() {
   } catch (err) {
     hide('progressWrap');
     showError(err.message);
-
   } finally {
     document.getElementById('genBtn').disabled = false;
     document.getElementById('genBtn').innerHTML = `
@@ -180,10 +142,13 @@ function showResult(beforeUrl, afterUrl, note) {
   setProgress(100, 'Rendu prêt !', '');
   setTimeout(() => {
     hide('progressWrap');
-    document.getElementById('imgBefore').src          = beforeUrl;
-    document.getElementById('imgAfter').src           = afterUrl;
-    document.getElementById('dlBtn').href             = afterUrl;
-    document.getElementById('cmpNote').textContent    = note;
+    document.getElementById('imgBefore').src       = beforeUrl;
+    document.getElementById('imgAfter').src        = afterUrl;
+    const dl = document.getElementById('dlBtn');
+    dl.href = afterUrl;
+    dl.target = '_blank';
+    dl.removeAttribute('download');
+    document.getElementById('cmpNote').textContent = note;
     show('compareWrap');
     sliderPct = 50;
     updateSlider();
@@ -193,9 +158,9 @@ function showResult(beforeUrl, afterUrl, note) {
 
 // ── Compare slider ─────────────────────────────────────────────
 function updateSlider() {
-  document.getElementById('cmpAfter').style.width  = sliderPct + '%';
-  document.getElementById('cmpLine').style.left    = sliderPct + '%';
-  document.getElementById('cmpHandle').style.left  = sliderPct + '%';
+  document.getElementById('cmpAfter').style.width = sliderPct + '%';
+  document.getElementById('cmpLine').style.left   = sliderPct + '%';
+  document.getElementById('cmpHandle').style.left = sliderPct + '%';
 }
 
 function getSliderPct(clientX) {
@@ -205,33 +170,11 @@ function getSliderPct(clientX) {
 
 function initSlider() {
   const stage = document.getElementById('cmpStage');
-
-  stage.addEventListener('mousedown', e => {
-    dragging  = true;
-    sliderPct = getSliderPct(e.clientX);
-    updateSlider();
-  });
-
-  window.addEventListener('mousemove', e => {
-    if (!dragging) return;
-    sliderPct = getSliderPct(e.clientX);
-    updateSlider();
-  });
-
+  stage.addEventListener('mousedown', e => { dragging = true; sliderPct = getSliderPct(e.clientX); updateSlider(); });
+  window.addEventListener('mousemove', e => { if (dragging) { sliderPct = getSliderPct(e.clientX); updateSlider(); } });
   window.addEventListener('mouseup', () => (dragging = false));
-
-  stage.addEventListener('touchstart', e => {
-    dragging  = true;
-    sliderPct = getSliderPct(e.touches[0].clientX);
-    updateSlider();
-  }, { passive: true });
-
-  window.addEventListener('touchmove', e => {
-    if (!dragging) return;
-    sliderPct = getSliderPct(e.touches[0].clientX);
-    updateSlider();
-  }, { passive: true });
-
+  stage.addEventListener('touchstart', e => { dragging = true; sliderPct = getSliderPct(e.touches[0].clientX); updateSlider(); }, { passive: true });
+  window.addEventListener('touchmove', e => { if (dragging) { sliderPct = getSliderPct(e.touches[0].clientX); updateSlider(); } }, { passive: true });
   window.addEventListener('touchend', () => (dragging = false));
 }
 
