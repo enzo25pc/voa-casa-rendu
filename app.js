@@ -5,7 +5,6 @@ let imgDataUrl = null;
 let sliderPct  = 50;
 let dragging   = false;
 
-// ── File handling ──────────────────────────────────────────────
 function bindFile(el) {
   el.addEventListener('change', e => handleFile(e.target.files[0]));
 }
@@ -38,7 +37,6 @@ function handleFile(file) {
   reader.readAsDataURL(file);
 }
 
-// ── Helpers ────────────────────────────────────────────────────
 function show(id) { document.getElementById(id).classList.add('vis'); }
 function hide(id) { document.getElementById(id).classList.remove('vis'); }
 
@@ -54,7 +52,6 @@ function showError(msg) {
   show('errWrap');
 }
 
-// ── Generate ───────────────────────────────────────────────────
 async function generate() {
   if (!imgBase64) return;
 
@@ -100,21 +97,23 @@ async function generate() {
     if (!vRes.ok) { const e = await vRes.json(); throw new Error(e.error?.message || 'Erreur GPT-4o Vision'); }
     const planDesc = (await vRes.json()).choices[0].message.content;
 
-    setProgress(45, 'Génération du rendu…', instructions ? 'Intégration de vos demandes spécifiques' : 'DALL·E 3 crée votre visualisation photoréaliste');
+    setProgress(45, 'Génération du rendu…', instructions ? 'Intégration de vos demandes spécifiques' : 'GPT Image 2 crée votre visualisation photoréaliste');
     await new Promise(r => setTimeout(r, 300));
 
-    // — Étape 2 : DALL-E 3
+    // — Étape 2 : GPT Image 2 (remplaçant de DALL-E 3 depuis mai 2026)
     const instrPrompt = instructions ? ` Specific improvements requested: ${instructions}.` : '';
     const prompt = `Photorealistic interior design visualization of a kitchen. Layout to respect: ${planDesc}.${instrPrompt} High-end French interior design studio quality. Soft natural daylight. Realistic materials: stone or quartz countertops, quality cabinetry, professional appliances. Beautiful composition from a slightly elevated angle showing the full kitchen. No text, no labels, no people. Ultra detailed, architectural photography quality, 4K.`;
 
     const dRes = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify({ model: 'dall-e-3-preview', prompt, n: 1, size: '1792x1024', quality: 'standard' }),
+      body: JSON.stringify({ model: 'gpt-image-2', prompt, n: 1, size: '1536x1024', quality: 'high' }),
     });
 
-    if (!dRes.ok) { const e = await dRes.json(); throw new Error(e.error?.message || 'Erreur DALL·E 3'); }
-    const genUrl = (await dRes.json()).data[0].url;
+    if (!dRes.ok) { const e = await dRes.json(); throw new Error(e.error?.message || 'Erreur GPT Image 2'); }
+    const dData = await dRes.json();
+    // GPT Image 2 retourne du base64 par défaut
+    const genUrl = 'data:image/png;base64,' + dData.data[0].b64_json;
 
     setProgress(95, 'Finalisation…', 'Assemblage du comparateur avant / après');
     await new Promise(r => setTimeout(r, 300));
@@ -156,7 +155,6 @@ function showResult(beforeUrl, afterUrl, note) {
   }, 350);
 }
 
-// ── Compare slider ─────────────────────────────────────────────
 function updateSlider() {
   document.getElementById('cmpAfter').style.width = sliderPct + '%';
   document.getElementById('cmpLine').style.left   = sliderPct + '%';
@@ -178,6 +176,5 @@ function initSlider() {
   window.addEventListener('touchend', () => (dragging = false));
 }
 
-// ── Event listeners ────────────────────────────────────────────
 document.getElementById('genBtn').addEventListener('click', generate);
 document.getElementById('retryBtn').addEventListener('click', generate);
