@@ -1,0 +1,139 @@
+<!DOCTYPE html>
+<html lang="fr">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Voa Casa — Rendu IA</title>
+  <meta name="description" content="Transformez vos plans de cuisine bruts en visuels photoréalistes grâce à l'intelligence artificielle.">
+  <link rel="icon" type="image/svg+xml" href="/favicon.svg">
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,300;0,400;0,600;1,300;1,400&family=Inter:wght@300;400;500;600&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="/style.css">
+</head>
+<body>
+
+  <header class="hdr">
+    <div class="logo">
+      <div class="lmark">
+        <svg viewBox="0 0 24 24"><path d="M3 9l9-7 9 7v11a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2z"/><polyline points="9 22 9 12 15 12 15 22"/></svg>
+      </div>
+      <div>
+        <span class="lname">Voa Casa</span>
+        <span class="lsub">Rendu IA</span>
+      </div>
+    </div>
+    <span class="badge">GPT-4o · DALL·E 3</span>
+  </header>
+
+  <main class="wrap">
+
+    <div class="hero">
+      <h1>Donnez vie à vos plans<br><em>en un seul clic</em></h1>
+      <p>Uploadez le plan brut de votre cuisine. L'IA génère un rendu photoréaliste pour que vos clients se projettent immédiatement.</p>
+    </div>
+
+    <!-- UPLOAD -->
+    <div class="upload-area" id="dropZone">
+      <input type="file" id="fileInput" accept="image/*">
+      <div class="upload-inner">
+        <div class="upload-ico">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+        </div>
+        <p class="upload-t">Déposez votre plan ici</p>
+        <p class="upload-s">Photo, scan ou croquis — l'IA s'adapte à tous les types de plans</p>
+        <p class="upload-fmt">JPG · PNG · max 10 Mo</p>
+      </div>
+    </div>
+
+    <!-- PREVIEW -->
+    <div class="preview-area" id="previewArea">
+      <img id="previewImg" alt="Plan uploadé">
+      <div class="preview-bar">
+        <span class="preview-name" id="previewName"></span>
+        <button class="btn-change">
+          <input type="file" id="changeInput" accept="image/*">
+          Changer de plan
+        </button>
+      </div>
+    </div>
+
+    <!-- INSTRUCTIONS -->
+    <div class="instructions">
+      <div class="instr-hd">
+        <svg viewBox="0 0 24 24"><path d="M12 20h9"/><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5z"/></svg>
+        <span class="instr-label">Ce que vous souhaitez améliorer</span>
+        <span class="instr-optional">optionnel</span>
+      </div>
+      <textarea class="instr-input" id="instrInput" placeholder="Ex : ajouter un îlot central, plan de travail en marbre blanc, meubles suspendus, façades laquées…"></textarea>
+    </div>
+
+    <!-- API KEY -->
+    <div class="api-row">
+      <label>Clé API OpenAI</label>
+      <input type="password" id="openaiKey" placeholder="sk-...">
+    </div>
+
+    <!-- BUTTON -->
+    <button class="btn-gen" id="genBtn" disabled>
+      <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round" stroke-linejoin="round"><polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/></svg>
+      Améliorer le rendu
+    </button>
+
+    <!-- PROGRESS -->
+    <div class="progress-wrap" id="progressWrap">
+      <div class="prog-ring-wrap">
+        <svg class="prog-ring" width="80" height="80" viewBox="0 0 80 80">
+          <circle class="prog-track" cx="40" cy="40" r="33"/>
+          <circle class="prog-bar" id="progBar" cx="40" cy="40" r="33" stroke-dasharray="207.3" stroke-dashoffset="207.3"/>
+        </svg>
+        <div class="prog-pct" id="progPct">0%</div>
+      </div>
+      <p class="prog-label" id="progLabel">Analyse du plan…</p>
+      <p class="prog-sub" id="progSub">GPT-4o examine l'agencement de votre cuisine</p>
+    </div>
+
+    <!-- COMPARE -->
+    <div class="compare-wrap" id="compareWrap">
+      <div class="cmp-labels">
+        <span class="cmp-lbl">Plan original</span>
+        <span class="cmp-lbl r">✦ Rendu Voa Casa</span>
+      </div>
+      <div class="cmp-stage" id="cmpStage">
+        <img class="img-before" id="imgBefore" alt="Plan original">
+        <div class="cmp-after-layer" id="cmpAfter">
+          <img id="imgAfter" alt="Rendu généré">
+        </div>
+        <div class="cmp-line" id="cmpLine"></div>
+        <div class="cmp-handle" id="cmpHandle">
+          <svg viewBox="0 0 24 24"><polyline points="15 18 9 12 15 6"/><polyline points="9 18 15 12 9 6"/></svg>
+        </div>
+      </div>
+      <div class="cmp-footer">
+        <p class="cmp-note" id="cmpNote"></p>
+        <button class="btn-retry" id="retryBtn">
+          <svg viewBox="0 0 24 24"><polyline points="23 4 23 10 17 10"/><path d="M20.49 15a9 9 0 1 1-2.12-9.36L23 10"/></svg>
+          Régénérer
+        </button>
+        <a class="btn-dl" id="dlBtn" download="rendu-voa-casa.png">
+          <svg viewBox="0 0 24 24"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+          Télécharger
+        </a>
+      </div>
+    </div>
+
+    <!-- ERROR -->
+    <div class="err-wrap" id="errWrap">
+      <div class="err-ico">
+        <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/></svg>
+      </div>
+      <div>
+        <div class="err-title">Une erreur est survenue</div>
+        <div class="err-msg" id="errMsg"></div>
+      </div>
+    </div>
+
+  </main>
+
+  <script src="/app.js"></script>
+</body>
+</html>
