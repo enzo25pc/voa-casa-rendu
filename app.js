@@ -103,14 +103,14 @@ async function generate() {
     setProgress(45, 'Génération du rendu…', instructions ? 'Intégration de vos demandes spécifiques' : 'DALL·E 3 crée votre visualisation photoréaliste');
     await new Promise(r => setTimeout(r, 300));
 
-    // — Étape 2 : DALL-E 3 — retourne une URL (pas de response_format b64_json)
+    // — Étape 2 : DALL-E 3
     const instrPrompt = instructions ? ` Specific improvements requested: ${instructions}.` : '';
     const prompt = `Photorealistic interior design visualization of a kitchen. Layout to respect: ${planDesc}.${instrPrompt} High-end French interior design studio quality. Soft natural daylight. Realistic materials: stone or quartz countertops, quality cabinetry, professional appliances. Beautiful composition from a slightly elevated angle showing the full kitchen. No text, no labels, no people. Ultra detailed, architectural photography quality, 4K.`;
 
     const dRes = await fetch('https://api.openai.com/v1/images/generations', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify({ model: 'dall-e-3', prompt, n: 1, size: '1792x1024', quality: 'hd' }),
+      body: JSON.stringify({ model: 'dall-e-3-preview', prompt, n: 1, size: '1792x1024', quality: 'standard' }),
     });
 
     if (!dRes.ok) { const e = await dRes.json(); throw new Error(e.error?.message || 'Erreur DALL·E 3'); }
