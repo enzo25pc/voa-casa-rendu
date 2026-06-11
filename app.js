@@ -74,7 +74,7 @@ async function generate() {
     Génération en cours…`;
 
   try {
-    // — Étape 1 : GPT-4o Vision lit et décrit le plan
+    // — Étape 1 : GPT-4o Vision décrit le plan
     setProgress(15, 'Lecture du plan…', 'GPT-4o analyse l\'agencement, les volumes et les proportions');
 
     const instrLine = instructions
@@ -99,7 +99,8 @@ async function generate() {
 
     setProgress(45, 'Génération du rendu…', instructions ? 'Intégration de vos demandes spécifiques' : 'GPT Image 2 crée votre visualisation photoréaliste');
 
-    // — Étape 2 : GPT Image 2 avec response_format explicite
+    // — Étape 2 : GPT Image 2
+    // b64_json est retourné par défaut, output_format pour le type de fichier
     const instrPrompt = instructions ? ` Specific improvements requested: ${instructions}.` : '';
     const prompt = `Photorealistic interior design visualization of a kitchen. Layout to respect: ${planDesc}.${instrPrompt} High-end French interior design studio quality. Soft natural daylight. Realistic materials: stone or quartz countertops, quality cabinetry, professional appliances. Beautiful composition from a slightly elevated angle showing the full kitchen. No text, no labels, no people. Ultra detailed, architectural photography quality, 4K.`;
 
@@ -113,27 +114,16 @@ async function generate() {
         size: '1536x1024',
         quality: 'medium',
         output_format: 'png',
-        response_format: 'b64_json',
       }),
     });
 
     if (!dRes.ok) { const e = await dRes.json(); throw new Error(e.error?.message || 'Erreur GPT Image 2'); }
 
-    setProgress(85, 'Traitement de l\'image…', 'Décodage du rendu généré');
+    setProgress(90, 'Finalisation…', 'Assemblage du comparateur avant / après');
 
     const dData = await dRes.json();
+    const genUrl = 'data:image/png;base64,' + dData.data[0].b64_json;
 
-    // GPT Image 2 peut retourner b64_json ou url selon le compte
-    let genUrl;
-    if (dData.data[0].b64_json) {
-      genUrl = 'data:image/png;base64,' + dData.data[0].b64_json;
-    } else if (dData.data[0].url) {
-      genUrl = dData.data[0].url;
-    } else {
-      throw new Error('Réponse inattendue de l\'API — aucune image reçue.');
-    }
-
-    setProgress(95, 'Finalisation…', 'Assemblage du comparateur avant / après');
     await new Promise(r => setTimeout(r, 300));
 
     const note = instructions
@@ -162,7 +152,7 @@ function showResult(beforeUrl, afterUrl, note) {
     document.getElementById('imgBefore').src       = beforeUrl;
     document.getElementById('imgAfter').src        = afterUrl;
     const dl = document.getElementById('dlBtn');
-    dl.href   = afterUrl;
+    dl.href = afterUrl;
     dl.target = '_blank';
     dl.removeAttribute('download');
     document.getElementById('cmpNote').textContent = note;
