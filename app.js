@@ -2,6 +2,7 @@
 
 let imgBase64  = null;
 let imgDataUrl = null;
+let imgFile    = null;
 let sliderPct  = 50;
 let dragging   = false;
 
@@ -23,6 +24,7 @@ dropZone.addEventListener('drop', e => {
 
 function handleFile(file) {
   if (!file || !file.type.startsWith('image/')) return;
+  imgFile = file;
   const reader = new FileReader();
   reader.onload = e => {
     imgDataUrl = e.target.result;
@@ -53,7 +55,7 @@ function showError(msg) {
 }
 
 async function generate() {
-  if (!imgBase64) return;
+  if (!imgFile) return;
 
   const apiKey = document.getElementById('openaiKey').value.trim();
   if (!apiKey) {
@@ -74,50 +76,42 @@ async function generate() {
     Génération en cours…`;
 
   try {
-    // — Étape 1 : GPT-4o Vision décrit le plan
-    setProgress(15, 'Lecture du plan…', 'GPT-4o analyse l\'agencement, les volumes et les proportions');
+    setProgress(20, 'Envoi du plan…', 'Transfert de l\'image vers GPT Image 2');
 
-    const instrLine = instructions
-      ? `\n\nThe client has specific requests: "${instructions}". Incorporate these while respecting the overall layout.`
-      : '';
+    // Prompt : amélioration fidèle, pas de recréation
+    const basePrompt = `Enhance this kitchen image to make it look like a professional interior design render. Keep the exact same layout, structure, furniture positions, room shape, and all architectural elements strictly unchanged. Only improve: sharpness and image clarity, natural lighting and brightness, surface materials realism (wood grain, stone texture, metal finish), decoration quality and finish details. Do NOT add, remove or move any furniture, walls, doors, windows or appliances. The result must look identical in layout to the input image but with a photorealistic, high-end finish.`;
 
-    const vRes = await fetch('https://api.openai.com/v1/chat/completions', {
+    const finalPrompt = instructions
+      ? `${basePrompt} Additionally, the client requests: ${instructions}.`
+      : basePrompt;
+
+    // Conversion en PNG si nécessaire (l'API edits exige PNG)
+    let fileToSend = imgFile;
+    if (imgFile.type !== 'image/png') {
+      fileToSend = await convertToPng(imgFile);
+    }
+
+    // Envoi via multipart/form-data à /v1/images/edits
+    const form = new FormData();
+    form.append('model', 'gpt-image-2');
+    form.append('image', fileToSend, 'plan.png');
+    form.append('prompt', finalPrompt);
+    form.append('n', '1');
+    form.append('size', '1024x1024');
+    form.append('quality', 'medium');
+
+    setProgress(40, 'Amélioration en cours…', 'GPT Image 2 retravaille la netteté, la lumière et la déco');
+
+    const dRes = await fetch('https://api.openai.com/v1/images/edits', {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify({
-        model: 'gpt-4o',
-        max_tokens: 700,
-        messages: [{ role: 'user', content: [
-          { type: 'image_url', image_url: { url: 'data:image/jpeg;base64,' + imgBase64 } },
-          { type: 'text', text: `You are an expert kitchen designer. Analyze this kitchen plan or sketch and describe it precisely in English so that an image generator can create a photorealistic 3D render faithful to this layout. Include: room shape and approximate dimensions, position of windows and doors, cabinet layout (L-shape, U-shape, galley, island, etc.), visible appliances and positions, worktop areas, and any distinctive architectural features. Write 4-5 descriptive sentences only.${instrLine}` },
-        ]}],
-      }),
+      headers: { 'Authorization': 'Bearer ' + apiKey },
+      body: form,
     });
 
-    if (!vRes.ok) { const e = await vRes.json(); throw new Error(e.error?.message || 'Erreur GPT-4o Vision'); }
-    const planDesc = (await vRes.json()).choices[0].message.content;
-
-    setProgress(45, 'Génération du rendu…', instructions ? 'Intégration de vos demandes spécifiques' : 'GPT Image 2 crée votre visualisation photoréaliste');
-
-    // — Étape 2 : GPT Image 2
-    // b64_json est retourné par défaut, output_format pour le type de fichier
-    const instrPrompt = instructions ? ` Specific improvements requested: ${instructions}.` : '';
-    const prompt = `Photorealistic interior design visualization of a kitchen. Layout to respect: ${planDesc}.${instrPrompt} High-end French interior design studio quality. Soft natural daylight. Realistic materials: stone or quartz countertops, quality cabinetry, professional appliances. Beautiful composition from a slightly elevated angle showing the full kitchen. No text, no labels, no people. Ultra detailed, architectural photography quality, 4K.`;
-
-    const dRes = await fetch('https://api.openai.com/v1/images/generations', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json', 'Authorization': 'Bearer ' + apiKey },
-      body: JSON.stringify({
-        model: 'gpt-image-2',
-        prompt,
-        n: 1,
-        size: '1536x1024',
-        quality: 'medium',
-        output_format: 'png',
-      }),
-    });
-
-    if (!dRes.ok) { const e = await dRes.json(); throw new Error(e.error?.message || 'Erreur GPT Image 2'); }
+    if (!dRes.ok) {
+      const e = await dRes.json();
+      throw new Error(e.error?.message || 'Erreur GPT Image 2');
+    }
 
     setProgress(90, 'Finalisation…', 'Assemblage du comparateur avant / après');
 
@@ -127,8 +121,8 @@ async function generate() {
     await new Promise(r => setTimeout(r, 300));
 
     const note = instructions
-      ? `Rendu généré en tenant compte de vos demandes : "${instructions}". Glissez le curseur pour comparer.`
-      : 'Glissez le curseur pour comparer le plan original et le rendu généré.';
+      ? `Rendu amélioré — demandes intégrées : "${instructions}". Glissez le curseur pour comparer.`
+      : 'Même agencement, meilleure lumière et finition. Glissez le curseur pour comparer.';
 
     showResult(imgDataUrl, genUrl, note);
 
@@ -143,6 +137,27 @@ async function generate() {
       </svg>
       Améliorer le rendu`;
   }
+}
+
+// Convertit n'importe quelle image en PNG via canvas
+function convertToPng(file) {
+  return new Promise((resolve, reject) => {
+    const img = new Image();
+    const url = URL.createObjectURL(file);
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      canvas.width  = img.width;
+      canvas.height = img.height;
+      canvas.getContext('2d').drawImage(img, 0, 0);
+      canvas.toBlob(blob => {
+        URL.revokeObjectURL(url);
+        if (blob) resolve(new File([blob], 'plan.png', { type: 'image/png' }));
+        else reject(new Error('Conversion PNG échouée'));
+      }, 'image/png');
+    };
+    img.onerror = () => reject(new Error('Lecture image échouée'));
+    img.src = url;
+  });
 }
 
 function showResult(beforeUrl, afterUrl, note) {
