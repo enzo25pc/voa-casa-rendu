@@ -78,29 +78,38 @@ async function generate() {
   try {
     setProgress(20, 'Envoi du plan…', 'Transfert de l\'image vers GPT Image 2');
 
-    // Prompt : amélioration fidèle, pas de recréation
-    const basePrompt = `Enhance this kitchen image to make it look like a professional interior design render. Keep the exact same layout, structure, furniture positions, room shape, and all architectural elements strictly unchanged. Only improve: sharpness and image clarity, natural lighting and brightness, surface materials realism (wood grain, stone texture, metal finish), decoration quality and finish details. Do NOT add, remove or move any furniture, walls, doors, windows or appliances. The result must look identical in layout to the input image but with a photorealistic, high-end finish.`;
+    const basePrompt = `Transform this kitchen plan or sketch into a photorealistic interior design render. 
+STRICT RULES — never break these:
+- Keep the exact same room shape, dimensions and proportions
+- Keep every wall, door, window and architectural element in the exact same position
+- Keep every piece of furniture and appliance in the exact same position
+- Do NOT add, remove or move anything structural
+
+IMPROVEMENTS to apply:
+- Photorealistic rendering: realistic wood grain, stone textures, matte or glossy cabinet finishes, metal hardware
+- Natural daylight: soft warm sunlight coming through the windows, realistic shadows and highlights, golden-hour atmosphere
+- Subtle tasteful decoration: a few plants, a fruit bowl on the countertop, a pendant light above the island if present, clean dishware visible on open shelves — all within the existing space, nothing added outside of what fits naturally
+- Professional architectural photography quality: sharp details, beautiful composition, 4K resolution
+- High-end French interior design studio finish`;
 
     const finalPrompt = instructions
-      ? `${basePrompt} Additionally, the client requests: ${instructions}.`
+      ? `${basePrompt}\n\nAdditional client requests (apply without changing the layout): ${instructions}.`
       : basePrompt;
 
-    // Conversion en PNG si nécessaire (l'API edits exige PNG)
     let fileToSend = imgFile;
     if (imgFile.type !== 'image/png') {
       fileToSend = await convertToPng(imgFile);
     }
 
-    // Envoi via multipart/form-data à /v1/images/edits
     const form = new FormData();
     form.append('model', 'gpt-image-2');
     form.append('image', fileToSend, 'plan.png');
     form.append('prompt', finalPrompt);
     form.append('n', '1');
     form.append('size', '1024x1024');
-    form.append('quality', 'medium');
+    form.append('quality', 'high');
 
-    setProgress(40, 'Amélioration en cours…', 'GPT Image 2 retravaille la netteté, la lumière et la déco');
+    setProgress(40, 'Rendu photoréaliste en cours…', 'Lumière naturelle, textures et déco en cours d\'application');
 
     const dRes = await fetch('https://api.openai.com/v1/images/edits', {
       method: 'POST',
@@ -121,8 +130,8 @@ async function generate() {
     await new Promise(r => setTimeout(r, 300));
 
     const note = instructions
-      ? `Rendu amélioré — demandes intégrées : "${instructions}". Glissez le curseur pour comparer.`
-      : 'Même agencement, meilleure lumière et finition. Glissez le curseur pour comparer.';
+      ? `Rendu photoréaliste avec lumière naturelle — demandes intégrées : "${instructions}". Glissez le curseur pour comparer.`
+      : 'Rendu photoréaliste avec lumière naturelle et déco subtile. Glissez le curseur pour comparer.';
 
     showResult(imgDataUrl, genUrl, note);
 
@@ -139,7 +148,6 @@ async function generate() {
   }
 }
 
-// Convertit n'importe quelle image en PNG via canvas
 function convertToPng(file) {
   return new Promise((resolve, reject) => {
     const img = new Image();
